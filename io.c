@@ -61,8 +61,13 @@ int
 io_ncopy(int fd_in, int fd_out, size_t size) {
   size_t copied = 0;
   size_t buf_size = size > DATA_BUFFER_SIZE ? DATA_BUFFER_SIZE : size;
-  char* buf = malloc(buf_size);
+  void* buf = malloc(buf_size);
   ssize_t n;
+
+  while(!buf) {
+    buf_size /= 2;
+    buf = malloc(buf_size);
+  }
 
   while(copied < size) {
     n = size - copied;
