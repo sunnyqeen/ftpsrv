@@ -227,7 +227,11 @@ ftp_thread(void *args) {
   }
 
   env.readbuf_size = IO_COPY_BUFSIZE;
-  if(!(env.readbuf=malloc(env.readbuf_size))) {
+  while(!(env.readbuf=malloc(env.readbuf_size))) {
+    env.readbuf_size /= 2;
+  }
+
+  if(!(env.readbuf)) {
     FTP_LOG_PERROR("malloc");
     running = 0;
   } else {
