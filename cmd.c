@@ -912,9 +912,11 @@ ftp_cmd_STOR(ftp_env_t *env, const char* arg) {
     return ftp_active_printf(env, "501 Usage: STOR <FILENAME>\r\n");
   }
 
+  /*
   if(env->type == 'A') {
     return ftp_active_printf(env, "504 STOR in ASCII mode is not supported\r\n");
   }
+  */
 
   ftp_abspath(env, pathbuf, arg);
   if((fd=open(pathbuf, O_CREAT | O_WRONLY, 0777)) < 0) {
