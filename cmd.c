@@ -540,7 +540,7 @@ int
 ftp_cmd_FEAT(ftp_env_t *env, const char *arg) {
   return ftp_active_printf(env,
                            "211-Features:\r\n"
-                           " MLSD\r\n"
+                           //" MLSD\r\n"
                            " KILL\r\n"
                            " MTRW\r\n"
                            " SELF\r\n"

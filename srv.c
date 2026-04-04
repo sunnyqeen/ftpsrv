@@ -54,7 +54,7 @@ static ftp_command_t commands[] = {
   {"FEAT", ftp_cmd_FEAT},
   {"LIST", ftp_cmd_LIST},
   {"MKD",  ftp_cmd_MKD},
-  {"MLSD", ftp_cmd_MLSD},
+  //{"MLSD", ftp_cmd_MLSD},
   {"NOOP", ftp_cmd_NOOP},
   {"PASV", ftp_cmd_PASV},
   {"PORT", ftp_cmd_PORT},
