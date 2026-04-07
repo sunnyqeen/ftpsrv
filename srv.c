@@ -77,6 +77,7 @@ static ftp_command_t commands[] = {
   {"SELF", ftp_cmd_SELF},
   {"CHMOD", ftp_cmd_CHMOD},
   {"CLONE", ftp_cmd_CLONE},
+  {"EXEC", ftp_cmd_EXEC},
 
   // duplicates that ensure commands are 4 bytes long
   {"XCUP", ftp_cmd_CDUP},

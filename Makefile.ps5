@@ -31,7 +31,7 @@ CFLAGS := -Wall -Werror -DVERSION_TAG=\"$(VERSION_TAG)\" -I.
 CFLAGS += -DTITLE_ID=\"$(TITLE_ID)\"
 
 SOURCE := srv.c cmd.c notify.c io.c self.c sha256.c
-SOURCE += main-prospero.c cmd-prospero.c self-prospero.c
+SOURCE += main-prospero.c cmd-prospero.c self-prospero.c elfldr.c pt.c
 SOURCE += io-freebsd.c
 
 all: ftpsrv-ps5.elf ftpsrv-ps5-install.elf
