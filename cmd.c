@@ -310,6 +310,183 @@ ftp_cmd_CHMOD(ftp_env_t *env, const char* arg) {
 
 
 /**
+ *
+ **/
+static char* concat_path_file(const char *path, const char *filename) {
+  const char *lc;
+  char* buf;
+  size_t len = strlen(path);
+  lc = path + len - 1;
+  if (*lc != '/')
+    lc = NULL;
+
+  while (*filename == '/')
+    filename++;
+
+  len += strlen(filename) + 2;
+  buf = malloc(len);
+  snprintf(buf, len, "%s%s%s", path, (lc==NULL ? "/" : ""), filename);
+  return buf;
+}
+
+static char* concat_subpath_file(const char *path, const char *filename) {
+  if (*filename == '.' &&
+    ((*(filename + 1) == '.' && *(filename + 2) == 0) ||
+    *(filename + 1) == 0))
+    return NULL;
+
+  return concat_path_file(path, filename);
+}
+
+static int clone_file(ftp_env_t *env, const char *source, const char *dest) {
+  /* This is a recursive function, try to minimize stack usage */
+  /* NB: each struct stat is ~100 bytes */
+  struct stat source_stat;
+  struct stat dest_stat;
+  int retval = 0;
+  int dest_exists = 0;
+
+  if (stat(source, &source_stat) < 0) {
+    return -1;
+  }
+
+  if (stat(dest, &dest_stat) < 0) {
+    if (errno != ENOENT) {
+      return -1;
+    }
+  } else {
+    if (source_stat.st_dev == dest_stat.st_dev
+     && source_stat.st_ino == dest_stat.st_ino
+    ) {
+      return -1;
+    }
+    dest_exists = 1;
+  }
+
+  if (S_ISDIR(source_stat.st_mode)) {
+    DIR *dp;
+    struct dirent *d;
+
+    if (dest_exists) {
+      if (!S_ISDIR(dest_stat.st_mode)) {
+        return -1;
+      }
+      /* race here: user can substitute a symlink between
+       * this check and actual creation of files inside dest */
+    } else {
+      /* Create DEST */
+      mode_t mode;
+      mode = source_stat.st_mode;
+      /* Allow owner to access new dir (at least for now) */
+      mode |= S_IRWXU;
+      if (mkdir(dest, mode) < 0) {
+        return -1;
+      }
+    }
+
+    /* Recursively copy files in SOURCE */
+    dp = opendir(source);
+    if (dp == NULL) {
+      retval = -1;
+      goto preserve_mode_ugid_time;
+    }
+
+    while ((d = readdir(dp)) != NULL) {
+      char *new_source, *new_dest;
+
+      new_source = concat_subpath_file(source, d->d_name);
+      if (new_source == NULL)
+        continue;
+      new_dest = concat_path_file(dest, d->d_name);
+      if (clone_file(env, new_source, new_dest) < 0)
+        retval = -1;
+      free(new_source);
+      free(new_dest);
+    }
+    closedir(dp);
+
+    if (!dest_exists
+     && chmod(dest, source_stat.st_mode) < 0
+    ) {
+      /* retval = -1; - WRONG! copy *WAS* made */
+    }
+    goto preserve_mode_ugid_time;
+  }
+
+  if (S_ISREG(source_stat.st_mode)) {
+    int src_fd;
+    int dst_fd;
+    mode_t new_mode;
+
+    src_fd = open(source, O_RDONLY);
+    if (src_fd < 0)
+      return -1;
+
+    new_mode = source_stat.st_mode;
+
+    /*
+     * O_CREAT|O_TRUNC: create, or truncate (security problem versus (sym)link attacks)
+     */
+    dst_fd = open(dest, O_WRONLY|O_CREAT|O_TRUNC, new_mode);
+    if (dst_fd == -1) {
+      close(src_fd);
+      return -1;
+    }
+
+    ftp_active_printf(env, "200- %s -> %s\r\n", source, dest);
+    if (io_ncopy(src_fd, dst_fd, source_stat.st_size))
+      retval = -1;
+
+    /* Careful with writing... */
+    if (close(dst_fd) < 0) {
+      retval = -1;
+    }
+    /* ...but read size is already checked */
+    close(src_fd);
+  }
+
+ preserve_mode_ugid_time:
+
+  {
+    struct timeval times[2];
+
+    times[1].tv_sec = times[0].tv_sec = source_stat.st_mtime;
+    times[1].tv_usec = times[0].tv_usec = 0;
+    /* BTW, utimes sets usec-precision time - just FYI */
+    utimes(dest, times);
+    chmod(dest, source_stat.st_mode);
+  }
+
+  return retval;
+}
+/**
+ * clone local file or dir to another location
+ **/
+int ftp_cmd_CLONE(ftp_env_t *env, const char* arg) {
+  char pathbuf_src[PATH_MAX];
+  char pathbuf_dest[PATH_MAX];
+  char pathbu_tmp[PATH_MAX];
+  char* ptr;
+  size_t len;
+  if(!arg[0] || !(ptr=strstr(arg, " "))) {
+    return ftp_active_printf(env, "501 Usage: CLONE <SRC> <DEST>\r\n");
+  }
+
+  len = ptr - arg;
+  strncpy(pathbu_tmp, arg, len);
+  pathbu_tmp[len] = 0;
+
+  ftp_abspath(env, pathbuf_src, pathbu_tmp);
+  ftp_abspath(env, pathbuf_dest, ptr+1);
+
+  if (clone_file(env, pathbuf_src, pathbuf_dest)) {
+    return ftp_active_printf(env, "550 Clone failed\r\n");
+  }
+
+  return ftp_active_printf(env, "200 OK\r\n");
+}
+
+/**
  * Change the working directory.
  **/
 int
